@@ -138,7 +138,12 @@ namespace New_Project.Controllers
                 .Settings(s => s
                     .Analysis(a => a
                         .Tokenizers(t => t.NGram("mynGram", ng => new NGramTokenizer { MaxGram = 10, MinGram = 1 }))
-                        .Analyzers(an => an.Custom("mynGram", c => c.Tokenizer("mynGram")))
+                        .Analyzers(an => an.Custom("mynGram", c => c
+                            .Tokenizer("mynGram") 
+                            .Filters(new List<string> {"synonym"})
+                            )
+                        )
+                        .TokenFilters(tf => tf.Synonym("synonym", sy => new SynonymTokenFilter { Synonyms = new[] { "people => 0", "person => 2"}, Tokenizer = "whitespace" }))
                     )
                     .Setting(UpdatableIndexSettings.MaxNGramDiff, 9)
                 )
