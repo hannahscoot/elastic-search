@@ -132,6 +132,8 @@ namespace New_Project.Controllers
                 }
             };
 
+            var itemList = new List<string>() { "people, 0", "person, 2"}; //Example of synonym list returned from db format, except with dummy data relavant to this case
+
             elasticClient.Indices.Delete("users");
 
             elasticClient.Indices.Create("users", i => i
@@ -143,7 +145,7 @@ namespace New_Project.Controllers
                             .Filters(new List<string> {"synonym"})
                             )
                         )
-                        .TokenFilters(tf => tf.Synonym("synonym", sy => new SynonymTokenFilter { Synonyms = new[] { "people => 0", "person => 2"}, Tokenizer = "whitespace" }))
+                        .TokenFilters(tf => tf.Synonym("synonym", sy => sy.Synonyms(itemList).Format(SynonymFormat.Solr).Expand(false)))
                     )
                     .Setting(UpdatableIndexSettings.MaxNGramDiff, 9)
                 )
