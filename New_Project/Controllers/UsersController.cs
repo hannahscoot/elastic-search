@@ -29,44 +29,6 @@ namespace New_Project.Controllers
         [HttpGet]
         public List<User> GetAll()
         {
-            /*var response = elasticClient.Search<User>(s => s
-                .Index("users")
-                .Size(10000) //This is the max value allowed (index.max_result_window)
-                .Query(q => q.MatchAll()));
-            return response.Documents.ToList();*/
-
-            /*var response = new List<User>();
-            for (int i=0; i < 4; i++)
-            {
-                var webRequest = new HttpRequestMessage(HttpMethod.Get, ("http://localhost:9200/users/_search?size=2&from=" + i*2));
-                var webResponse = client.Send(webRequest);
-                using var reader = new StreamReader(webResponse.Content.ReadAsStream());
-                var singleResponse = JObject.Parse(reader.ReadToEnd());
-                var attempt = (object)singleResponse.SelectToken("hits.hits");
-                Console.WriteLine(attempt);
-            }*/
-
-
-            var SearchTerm = @"{
-                                ""query"": {
-                                    ""fuzzy"": { 
-                                        ""name"": {
-                                            ""value"": ""user""
-                                        }
-                                    }
-                                }
-                            }";
-
-            SearchRequest searchRequest;
-            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(SearchTerm)))
-            {
-                searchRequest = elasticClient.SourceSerializer.Deserialize<SearchRequest>(stream);
-            }
-
-            ISearchResponse<User> responses;
-            responses = elasticClient.Search<User>(searchRequest);
-            return responses.Documents.ToList();
-
             var response = new List<User>();
             var scanResults = elasticClient.Search<User>(s => s
                 .Index("users")
@@ -90,26 +52,43 @@ namespace New_Project.Controllers
         [HttpGet("{id}")]
         public List<User> Get(string id)
         {
-            var webRequest = new HttpRequestMessage(HttpMethod.Get, "http://localhost:9200/users/_search?q=*"+id.ToLower()+"*"); //searches all fields for terms containing the entered phrase
-            /*http://localhost:9200/users/_search?q=name:*2*%20|%20*:usr3~AUTO */ //searches name containing a 2 OR any field containing the usr3 to fuzziness of AUTO ( %20|%20 <=> " | " )
+            var testcase = new User
+            {
+                Name = "*",
+                Age = 0,
+                Address = id
+            };
+            var searcharr = new List<User>() { testcase }; // Input array of objects with field name and value/query string (or int) currently with a fake class so it works (obviously to be adapted)
+            QueryContainer orQuery = null;
+            List<QueryContainer> queryContainerList = new List<QueryContainer>();
+            foreach (var item in searcharr)
+            {
+                orQuery = new QueryStringQuery() { Fuzziness = Fuzziness.Auto, Fields = item.Name, Query = item.Address };
+                queryContainerList.Add(orQuery);
+                orQuery = new QueryStringQuery() { Fields = item.Name, Query = "*" + item.Address + "*", };
+                queryContainerList.Add(orQuery);
+            }
+            var test = new QueryContainerDescriptor<User>().Bool(b => b.Should(queryContainerList.ToArray()));
 
-            var responseweb = client.Send(webRequest);
-            using var reader = new StreamReader(responseweb.Content.ReadAsStream());
-            Console.WriteLine(reader.ReadToEnd());
-            return new List<User>() { };
-            //var input = id;
-            ////A input based search by name
-            //var response = elasticClient.Search<User>(s => s
-            //    .Index("users")
-            //    //.Query(q => q.Term(f => f.Age, 34))); //This searches for a matching value (int)
-            //    //.Query(q => q.Match(m => m.Field("name").Query(input)))); //This searched for a matching value
-            //    .Query(q => q.Bool(b => b.Should(
-            //      //m => m.Wildcard(c => c.Field("age").Value("*" + input.ToLower() + "*")), 
-            //      m => m.Wildcard(c => c.Field("name").Value("*"+input.ToLower()+"*")))))); //This searches for values containing the input, on both fields names,age
-            //    //.Query(q => q.Bool(b => b.Should(
-            //        //s => s.Fuzzy(f => f.Field("name").Value(input)),
-            //        //s => s.Fuzzy(f => f.Field("address").Value(input)))))); //This search for values similar to input,  on both fields names,address
-            //return response?.Documents.ToList();
+            var response = new List<User>();
+            var scanResults = elasticClient.Search<User>(s => s
+                .Index("users")
+                .Size(1)
+                .Query(q => test)
+                .Scroll("10m")
+            );
+            response = scanResults.Documents.ToList();
+            var results = elasticClient.Scroll<User>("10m", scanResults.ScrollId);
+            while (results.Documents.Any())
+            {
+                foreach (var doc in results.Documents)
+                {
+                    response.Add(doc);
+                }
+                results = elasticClient.Scroll<User>("10m", results.ScrollId);
+            }
+            return response;
+
         }
         // POST api/Users
         [HttpPost]
@@ -155,7 +134,21 @@ namespace New_Project.Controllers
 
             elasticClient.Indices.Delete("users");
 
-            elasticClient.Indices.Create("users");
+            elasticClient.Indices.Create("users", i => i
+                .Settings(s => s
+                    .Analysis(a => a
+                        .Tokenizers(t => t.NGram("mynGram", ng => new NGramTokenizer { MaxGram = 10, MinGram = 1 }))
+                        .Analyzers(an => an.Custom("mynGram", c => c.Tokenizer("mynGram")))
+                    )
+                    .Setting(UpdatableIndexSettings.MaxNGramDiff, 9)
+                )
+                .Map<User>(
+                    m => m.AutoMap()
+                        .Properties(p => p
+                            .Text(t => t.Name(n => n.Age).Analyzer("mynGram").SearchAnalyzer("mynGram"))
+                        )
+                )
+            );
 
             elasticClient.IndexMany<User>(items, "users");
 
