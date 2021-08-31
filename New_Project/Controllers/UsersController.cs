@@ -91,12 +91,24 @@ namespace New_Project.Controllers
 
         }
         // POST api/Users
-        [HttpPost]
-        public string Post([FromBody] User value)
-        {
-            /////// Super Simple Post needs format of {name: "", age: "", address:""}/////// 
-            var response = elasticClient.Index<User>(value, x => x.Index("users"));
-            return response.Id;
+        [HttpGet("post")]
+        public string Post(string previousInfo, string name)
+        { 
+            var newUser = new User()
+            {
+                Name = previousInfo,
+                Age = 45,
+                Address = name
+            };
+
+            var bulkIndexer = new BulkDescriptor();
+                    bulkIndexer.Update<User>(i => i
+                    .DocAsUpsert(true)
+                    .Id(newUser.Name)
+                    .Doc(newUser)
+                    .Index("users"));
+                var bulkResponse = elasticClient.Bulk(bulkIndexer);
+            return bulkResponse.IsValid.ToString();
         }
         // DELETE api/Users
         [HttpDelete]
@@ -126,9 +138,9 @@ namespace New_Project.Controllers
                 },
                 new User
                 {
-                    Name = "789 Street",
+                    Name = "User3",
                     Age = 34,
-                    Address = "User3"
+                    Address = "789 Street"
                 }
             };
 
@@ -157,7 +169,15 @@ namespace New_Project.Controllers
                 )
             );
 
-            elasticClient.IndexMany<User>(items, "users");
+            var bulkIndexer = new BulkDescriptor();
+            foreach (var document in items)
+            {
+                bulkIndexer.Index<User>(i => i
+                    .Id(document.Name)
+                    .Document(document)
+                    .Index("users"));
+            }
+            var bulkResponse = elasticClient.Bulk(bulkIndexer);
 
             //elasticClient.Bulk(b => b.Index("users").IndexMany(items));
         }

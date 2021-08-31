@@ -2,6 +2,7 @@
     var vm = this;
     vm.input = '';
     vm.responseData;
+    vm.nameinput = '';
     
     vm.search = function () {//Super Simple Search
         if (vm.input == '') {
@@ -13,6 +14,12 @@
                 vm.responseData = resp.data;
             })
         }
+    }
+
+    vm.upsert = function () {
+        homeFactory.upsert(vm.input, vm.nameinput).then(function (resp) {
+            vm.responseData = resp.data;
+        })
     }
 
     vm.clearAll = function () {
