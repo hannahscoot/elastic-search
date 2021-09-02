@@ -97,7 +97,7 @@ namespace New_Project.Controllers
             var newUser = new User()
             {
                 Name = previousInfo,
-                Age = 45,
+                Age = 45, 
                 Address = name
             };
 
@@ -128,43 +128,54 @@ namespace New_Project.Controllers
                 {
                     Name = "User1",
                     Age = 30,
-                    Address = "123 Street"
+                    Address = "SWC"
                 },
                 new User
                 {
                     Name = "User2",
                     Age = 32,
-                    Address = "456 Street"
+                    Address = "bop"
                 },
                 new User
                 {
                     Name = "User3",
                     Age = 34,
-                    Address = "789 Street"
+                    Address = "cuk"
                 }
             };
 
-            var itemList = new List<string>() { "people, 0", "person, 2"}; //Example of synonym list returned from db format, except with dummy data relavant to this case
+            var itemList = new List<string>() { "ting, bop", "shes, cuk" }; //Example of synonym list returned from db format, except with dummy data relavant to this case
 
             elasticClient.Indices.Delete("users");
 
             elasticClient.Indices.Create("users", i => i
                 .Settings(s => s
                     .Analysis(a => a
+                        .TokenFilters(tf => tf.Synonym("synonym", sy => sy.Synonyms(itemList).Format(SynonymFormat.Solr).Expand(false)))
                         .Tokenizers(t => t.NGram("mynGram", ng => new NGramTokenizer { MaxGram = 10, MinGram = 1 }))
-                        .Analyzers(an => an.Custom("mynGram", c => c
-                            .Tokenizer("mynGram") 
-                            .Filters(new List<string> {"synonym"})
+                        .Analyzers(an => an
+                            .Custom("mynGram", c => c
+                                .Tokenizer("mynGram")
+                                .Filters(filters: new List<string> { "synonym" })
+                            )
+                            .Custom("other", c => c
+                                .Tokenizer("standard")
+                                .Filters(filters: new List<string> { "synonym" })
                             )
                         )
-                        .TokenFilters(tf => tf.Synonym("synonym", sy => sy.Synonyms(itemList).Format(SynonymFormat.Solr).Expand(false)))
                     )
                     .Setting(UpdatableIndexSettings.MaxNGramDiff, 9)
                 )
                 .Map<User>(
                     m => m.AutoMap()
                         .Properties(p => p
-                            .Text(t => t.Name(n => n.Age).Analyzer("mynGram").SearchAnalyzer("mynGram"))
+                            .Text(t => t
+                                .Name(n => n.Age)
+                                .Analyzer("mynGram").SearchAnalyzer("other"))
+                            .Text(t => t
+                                .Name(n => n.Name)
+                                .Name(n => n.Address)
+                                .Analyzer("other").SearchAnalyzer("other"))
                         )
                 )
             );
