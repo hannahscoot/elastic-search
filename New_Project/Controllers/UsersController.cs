@@ -63,7 +63,7 @@ namespace New_Project.Controllers
             List<QueryContainer> queryContainerList = new List<QueryContainer>();
             foreach (var item in searcharr)
             {
-                orQuery = new QueryStringQuery() { Fuzziness = Fuzziness.Auto, Fields = item.Name, Query = item.Address };
+                orQuery = new QueryStringQuery() { Fields = item.Name, Query = item.Address+"~", DefaultOperator = Operator.And };
                 queryContainerList.Add(orQuery);
                 orQuery = new QueryStringQuery() { Fields = item.Name, Query = "*" + item.Address + "*", };
                 queryContainerList.Add(orQuery);
@@ -126,13 +126,13 @@ namespace New_Project.Controllers
             {
                 new User
                 {
-                    Name = "User1",
+                    Name = "min routes",
                     Age = 30,
-                    Address = "SWC"
+                    Address = "pipeline admin"
                 },
                 new User
                 {
-                    Name = "User2",
+                    Name = "minimum task lot",
                     Age = 32,
                     Address = "bop"
                 },
@@ -140,11 +140,11 @@ namespace New_Project.Controllers
                 {
                     Name = "User3",
                     Age = 34,
-                    Address = "cuk"
+                    Address = "report BOM"
                 }
             };
 
-            var itemList = new List<string>() { "ting, bop", "shes, cuk" }; //Example of synonym list returned from db format, except with dummy data relavant to this case
+            var itemList = new List<string>() { "admin, administrator, administration, admin page", "authorize, authorise", "BOM, Bill of Materials", "Cell, Business Area", "defer, deferred, deferral, purple", "Green Thumb, FAQ", "licence, license", "maximum, max", "minimum, min", "option, options, configuration, configurations, alias", "People, Person, User, Login", "pooling, pool, pooled", "Reports, Izenda, Reporting, report, pipeline", "revision, rev", "second operator, 2nd operator, add coworker", "SWC, Standard Work Chart, Standardized Work Chart", "translation, localisation, language", "User Blocked, Blacklist", "Work Instructions, Tasks, Routes, Task, Route, Work Instruction", "Workbench, Workstation", "Works Order, Work order" }; //Example of synonym list returned from db format, except with dummy data relavant to this case
 
             elasticClient.Indices.Delete("users");
 
@@ -159,7 +159,7 @@ namespace New_Project.Controllers
                                 .Filters(filters: new List<string> { "synonym" })
                             )
                             .Custom("other", c => c
-                                .Tokenizer("standard")
+                                .Tokenizer("lowercase")
                                 .Filters(filters: new List<string> { "synonym" })
                             )
                         )
@@ -174,6 +174,8 @@ namespace New_Project.Controllers
                                 .Analyzer("mynGram").SearchAnalyzer("other"))
                             .Text(t => t
                                 .Name(n => n.Name)
+                                .Analyzer("other").SearchAnalyzer("other"))
+                            .Text(t => t
                                 .Name(n => n.Address)
                                 .Analyzer("other").SearchAnalyzer("other"))
                         )
